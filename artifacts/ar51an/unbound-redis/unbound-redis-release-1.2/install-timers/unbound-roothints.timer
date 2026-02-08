@@ -1,0 +1,9 @@
+[Unit]
+Description=Unbound root.hints update timer - Monthly on last SUN at 3:55AM
+
+[Timer]
+OnCalendar=Sun *-*~07/1 03:55
+Persistent=true
+ 
+[Install]
+WantedBy=timers.target
