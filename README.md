@@ -22,6 +22,7 @@ The project stands on the should of giants (as it happens most of the times anyw
     - [ ] Privacy enchanced DNS
     - [ ] (Semi) persistent cache via Redis
     - [ ] Beautiful dashboard
+      - [ ] Podman / Docker build
 - [ ] adblock (domain block)
 - [ ] Redis install via ansible
 - [ ] Log stack (Loki and Promtail)
