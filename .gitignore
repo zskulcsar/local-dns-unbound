@@ -1,0 +1,9 @@
+# Codex
+.codex/
+
+# Other
+./tmp
+.DS_Store
+
+# Environment
+.env*
