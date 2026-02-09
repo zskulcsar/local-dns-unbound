@@ -1,0 +1,13 @@
+---
+unbound_package_name: unbound
+unbound_service_name: unbound
+systemd_resolved_service_name: systemd-resolved
+
+unbound_resolved_template_src: resolved.conf.d-unbound.conf
+unbound_resolved_conf_path: /etc/systemd/resolved.conf.d/unbound.conf
+
+unbound_conf_template_src: unbound.conf
+unbound_conf_path: /etc/unbound/unbound.conf
+
+unbound_test_domain: example.com
+unbound_cache_query_become_user: unbound

@@ -1,0 +1,103 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Load unbound role defaults
+      ansible.builtin.include_vars:
+        file: ../../defaults/main.yml
+
+    - name: Gather package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert unbound package is installed
+      ansible.builtin.assert:
+        that:
+          - unbound_package_name in ansible_facts.packages
+        fail_msg: "Expected package {{ unbound_package_name }} is not installed."
+
+    - name: Check rendered config files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: unbound_config_files
+      loop:
+        - "{{ unbound_resolved_conf_path }}"
+        - "{{ unbound_conf_path }}"
+
+    - name: Assert rendered config files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+        fail_msg: "Expected config file {{ item.stat.path }} to exist."
+      loop: "{{ unbound_config_files.results }}"
+
+    - name: Assert unbound service is active
+      ansible.builtin.command:
+        cmd: "systemctl is-active --quiet {{ unbound_service_name }}"
+      changed_when: false
+
+    - name: Assert systemd-resolved service is active
+      ansible.builtin.command:
+        cmd: "systemctl is-active --quiet {{ systemd_resolved_service_name }}"
+      changed_when: false
+
+    - name: Run first dig query
+      ansible.builtin.command:
+        cmd: "dig @127.0.0.1 {{ unbound_test_domain }}"
+      register: unbound_dig_first
+      changed_when: false
+
+    - name: Parse first dig query results
+      ansible.builtin.set_fact:
+        unbound_first_query_time_ms: "{{ (unbound_dig_first.stdout | regex_findall(';; Query time: ([0-9]+) msec') | first | int) }}"
+        unbound_expected_ips: >-
+          {{
+            unbound_dig_first.stdout
+            | regex_findall('(?m)^\S+\s+\d+\s+IN\s+(?:A|AAAA)\s+([0-9A-Fa-f:.]+)$')
+            | list
+          }}
+
+    - name: Assert first query has a query-time line
+      ansible.builtin.assert:
+        that:
+          - 'unbound_dig_first.stdout is search(";; Query time: [0-9]+ msec")'
+        fail_msg: "First dig query did not include a query-time line."
+
+    - name: Run second dig query
+      ansible.builtin.command:
+        cmd: "dig @127.0.0.1 {{ unbound_test_domain }}"
+      register: unbound_dig_second
+      changed_when: false
+
+    - name: Parse second dig query time
+      ansible.builtin.set_fact:
+        unbound_second_query_time_ms: "{{ (unbound_dig_second.stdout | regex_findall(';; Query time: ([0-9]+) msec') | first | int) }}"
+
+    - name: Assert second query time is exactly 0 ms
+      ansible.builtin.assert:
+        that:
+          - 'unbound_dig_second.stdout is search(";; Query time: [0-9]+ msec")'
+          - unbound_second_query_time_ms == 0
+        fail_msg: "Second dig query did not return 0 ms."
+
+    - name: Assert dig returned at least one answer IP
+      ansible.builtin.assert:
+        that:
+          - unbound_expected_ips | length > 0
+        fail_msg: "dig did not return any answer IPs to validate cache contents."
+
+    - name: Read unbound cache lines for test domain
+      ansible.builtin.shell: "unbound-control dump_cache | grep '^{{ unbound_test_domain | regex_escape }}'"
+      become: true
+      become_user: "{{ 'root' if (ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('22.04', '==')) else unbound_cache_query_become_user }}"
+      register: unbound_cache_domain
+      changed_when: false
+
+    - name: Assert each dig IP exists in unbound cache output
+      ansible.builtin.assert:
+        that:
+          - unbound_cache_domain.stdout is search(item)
+        fail_msg: "Expected IP {{ item }} is missing from unbound cache output for {{ unbound_test_domain }}."
+      loop: "{{ unbound_expected_ips }}"

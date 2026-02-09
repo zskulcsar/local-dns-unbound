@@ -2,9 +2,16 @@
 
 The purpose of this project is to provide an automated way to install various privacy related tools on a linux box (either remote or local) using automation.
 
+Ansible role development and testing workflow lives in `docs/ansible/developing.md`.
+
 *Notice: using AI assited coding here is perfectly fine, I'll do myself as well. As I see it, if you threat them as **"active knowledge base"** you'll be just fine and will enhance your knowledge and likely make you a better engineer.*
 
 **TODO**: License. We'll need to figure out what suits the best considering the many places this project draws from (and redistributes work by others)
+
+### Notes:
+
+- As much docker as possible to avoid polluting the host os, ie.: dependencies that are not directly used by the OS should run in a container. We might want to use minikube here. as opposed to `[docker|podman]-swarm`
+- Obviously, thins that need to go to the host, should go to the host, but this must be minimised
 
 ## Sources
 
@@ -12,7 +19,7 @@ The project stands on the should of giants (as it happens most of the times anyw
 
 - (ar51an/unbound-dashboard)[https://github.com/ar51an/unbound-dashboard]
 - (ar51an/unbound-redis)[https://github.com/ar51an/unbound-redis]
-- (ar51an/unbound-exporter)[https://github.com/ar51an/unbound-exporter]
+- (ar51an/unbound-exporter)[https://github.com/ar51an/unbound-exporter] & (letsencrypt/unbound_exporter)[https://github.com/letsencrypt/unbound_exporter]
 - (opencoff/unbound-adblock)[https://github.com/opencoff/unbound-adblock]
 
 

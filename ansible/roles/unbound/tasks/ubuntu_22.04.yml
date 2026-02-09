@@ -1,0 +1,7 @@
+---
+# Ubuntu 22.04 compatibility overrides.
+# This file contains behavior differences that should apply only
+# on 22.04 without affecting newer Ubuntu releases.
+- name: Use root user for unbound cache query on Ubuntu 22.04
+  ansible.builtin.set_fact:
+    unbound_cache_query_become_user: root

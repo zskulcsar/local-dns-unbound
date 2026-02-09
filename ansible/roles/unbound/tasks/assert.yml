@@ -1,0 +1,104 @@
+---
+# Runtime verification tasks for the unbound role.
+# Performs dig/cache checks and assertions to confirm resolver behavior
+# and validate that cached answers match query results.
+- name: Assert unbound service is active before DNS checks
+  become: true
+  ansible.builtin.command:
+    cmd: "systemctl is-active --quiet {{ unbound_service_name }}"
+  changed_when: false
+
+- name: Assert systemd-resolved service is active before DNS checks
+  become: true
+  ansible.builtin.command:
+    cmd: "systemctl is-active --quiet {{ systemd_resolved_service_name }}"
+  changed_when: false
+
+- name: Run first dig query
+  ansible.builtin.command:
+    cmd: "dig @127.0.0.1 {{ unbound_test_domain }}"
+  register: unbound_dig_first
+  changed_when: false
+
+- name: Parse first dig query time
+  ansible.builtin.set_fact:
+    unbound_first_query_time_ms: >-
+      {{
+        (
+          unbound_dig_first.stdout
+          | regex_findall(';; Query time: ([0-9]+) msec')
+          | first
+          | default('0')
+        ) | int
+      }}
+    unbound_expected_ips: >-
+      {{
+        unbound_dig_first.stdout
+        | regex_findall('(?m)^\S+\s+\d+\s+IN\s+(?:A|AAAA)\s+([0-9A-Fa-f:.]+)$')
+        | list
+      }}
+
+- name: Assert first dig query is valid
+  ansible.builtin.assert:
+    that:
+      - unbound_dig_first.rc == 0
+      - 'unbound_dig_first.stdout is search("status: NOERROR")'
+      - 'unbound_dig_first.stdout is search("ANSWER: [1-9][0-9]*")'
+      - 'unbound_dig_first.stdout is search(";; Query time: [0-9]+ msec")'
+      - unbound_first_query_time_ms > 0
+    fail_msg: "First dig query failed validation (rc, status, answer count, or query time)."
+
+- name: Run second dig query
+  ansible.builtin.command:
+    cmd: "dig @127.0.0.1 {{ unbound_test_domain }}"
+  register: unbound_dig_second
+  changed_when: false
+
+- name: Parse second dig query time
+  ansible.builtin.set_fact:
+    unbound_second_query_time_ms: >-
+      {{
+        (
+          unbound_dig_second.stdout
+          | regex_findall(';; Query time: ([0-9]+) msec')
+          | first
+          | default('0')
+        ) | int
+      }}
+
+- name: Assert second dig query is valid and faster or equal
+  ansible.builtin.assert:
+    that:
+      - unbound_dig_second.rc == 0
+      - 'unbound_dig_second.stdout is search("status: NOERROR")'
+      - 'unbound_dig_second.stdout is search("ANSWER: [1-9][0-9]*")'
+      - 'unbound_dig_second.stdout is search(";; Query time: [0-9]+ msec")'
+      - unbound_second_query_time_ms <= unbound_first_query_time_ms
+    fail_msg: "Second dig query failed validation or was slower than the first query."
+
+- name: Assert dig returned at least one answer IP
+  ansible.builtin.assert:
+    that:
+      - unbound_expected_ips | length > 0
+    fail_msg: "dig did not return any answer IPs to validate cache contents."
+
+- name: Read unbound cache lines for test domain
+  ansible.builtin.shell: "unbound-control dump_cache | grep '^{{ unbound_test_domain | regex_escape }}'"
+  become: true
+  become_user: "{{ unbound_cache_query_become_user }}"
+  register: unbound_cache_domain
+  changed_when: false
+
+- name: Assert cache query succeeded and includes test domain
+  ansible.builtin.assert:
+    that:
+      - unbound_cache_domain.rc == 0
+      - unbound_cache_domain.stdout is search(unbound_test_domain)
+    fail_msg: "unbound-control cache query failed or did not return lines for {{ unbound_test_domain }}."
+
+- name: Assert each dig IP exists in unbound cache output
+  ansible.builtin.assert:
+    that:
+      - unbound_cache_domain.stdout is search(item)
+    fail_msg: "Expected IP {{ item }} is missing from unbound cache output for {{ unbound_test_domain }}."
+  loop: "{{ unbound_expected_ips }}"
