@@ -9,6 +9,15 @@ else
 RUN_IMAGE := $(IMAGE)
 endif
 
+.PHONY: help \
+	setup-core ansible-version ansible-ping ansible-inv-verify
+
+## Default
+help: ## List available make targets with descriptions.
+	@printf "Available targets:\n"
+	@grep -hE '.*##\s' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*##"} {printf "  %-20s %s\n", $$1, $$2}'
+
+
 # Horrible, horrible stuff ...
 ANS_CONTAINER=$(ENGINE) run --rm \
 	--userns=keep-id \
@@ -18,17 +27,17 @@ ANS_CONTAINER=$(ENGINE) run --rm \
 	-e ANSIBLE_SSH_COMMON_ARGS='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v' \
 	-v $(CURDIR):/ldu $(RUN_IMAGE)
 
-.PHONY: setup-core ansible-version
-setup-core:
+## Setup and verifications
+setup-core: ## Setup core dependencies
 	./scripts/setup-core.sh $(ENGINE) $(IMAGE)
 
-ansible-version:
+ansible-version: ## Check ansible version in the container image
 	$(ENGINE) run --rm $(RUN_IMAGE) ansible --version
 
-ansible-ping:
+ansible-ping: ## Ping the hosts from the inventory - use for checking connectivity
 	$(ANS_CONTAINER) ansible main -m ping -i /ldu/ansible/inventory.ini
 
-ansible-inv-verify:
+ansible-inv-verify: ## Verify the inventory file
 	$(ENGINE) run --rm -v $(CURDIR):/ldu $(RUN_IMAGE) \
 	ansible-inventory -i /ldu/ansible/inventory.ini --list
 
