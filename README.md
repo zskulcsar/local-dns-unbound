@@ -2,6 +2,8 @@
 
 The purpose of this project is to provide an automated way to install various privacy related tools on a linux box (either remote or local) using automation.
 
+Ansible role development and testing workflow lives in `docs/ansible/developing.md`.
+
 *Notice: using AI assited coding here is perfectly fine, I'll do myself as well. As I see it, if you threat them as **"active knowledge base"** you'll be just fine and will enhance your knowledge and likely make you a better engineer.*
 
 **TODO**: License. We'll need to figure out what suits the best considering the many places this project draws from (and redistributes work by others)

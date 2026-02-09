@@ -1,0 +1,68 @@
+---
+# Ubuntu common workflow for the unbound role.
+# Installs and configures unbound, applies Ubuntu-specific service flow,
+# and then delegates runtime validation to the assert task file.
+- name: Install unbound package
+  become: true
+  ansible.builtin.package:
+    name: "{{ unbound_package_name }}"
+    state: present
+
+- name: Stop unbound service
+  become: true
+  ansible.builtin.service:
+    name: "{{ unbound_service_name }}"
+    state: stopped
+
+- name: Ensure systemd-resolved config directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ unbound_resolved_conf_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create systemd-resolved unbound config
+  become: true
+  ansible.builtin.template:
+    src: "{{ unbound_resolved_template_src }}"
+    dest: "{{ unbound_resolved_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create unbound.conf from template
+  become: true
+  ansible.builtin.template:
+    src: "{{ unbound_conf_template_src }}"
+    dest: "{{ unbound_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Include Ubuntu 22.04 specific tasks
+  ansible.builtin.include_tasks: ubuntu_22.04.yml
+  when: ansible_distribution_version is version('22.04', '==')
+
+- name: Stop systemd-resolved service before binding unbound to port 53
+  become: true
+  ansible.builtin.service:
+    name: "{{ systemd_resolved_service_name }}"
+    state: stopped
+
+- name: Start unbound service
+  become: true
+  ansible.builtin.service:
+    name: "{{ unbound_service_name }}"
+    state: started
+    enabled: true
+
+- name: Restart systemd-resolved service
+  become: true
+  ansible.builtin.service:
+    name: "{{ systemd_resolved_service_name }}"
+    state: restarted
+
+- name: Run unbound assertions
+  ansible.builtin.include_tasks: assert.yml

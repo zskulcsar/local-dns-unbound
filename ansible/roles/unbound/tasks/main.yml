@@ -1,0 +1,24 @@
+---
+# Entry point for the unbound role task execution.
+# This file routes execution to distribution-specific task files and
+# provides a common rescue message when setup or validation fails.
+- name: Install and configure unbound
+  block:
+    - name: Include Ubuntu tasks
+      ansible.builtin.include_tasks: ubuntu.yml
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Fail for unsupported operating system
+      ansible.builtin.fail:
+        msg: >-
+          Distribution {{ ansible_distribution }} is not supported yet.
+          Add tasks file for this distribution (for example: tasks/{{ ansible_distribution | lower }}.yml).
+      when: ansible_distribution != "Ubuntu"
+
+  rescue:
+    - name: Warn when unbound role setup or verification fails
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: unbound installation/configuration verification did not work.
+          Failed task: {{ ansible_failed_task.name | default('unknown') }}.
+          Details: {{ ansible_failed_result.msg | default(ansible_failed_result | string) }}

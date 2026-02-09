@@ -10,7 +10,12 @@ RUN_IMAGE := $(IMAGE)
 endif
 
 .PHONY: help \
-	setup-core ansible-version ansible-ping ansible-inv-verify
+	setup-core ansible-version ansible-ping ansible-inv-verify \
+	uv-sync-ansible molecule-test molecule-converge molecule-destroy \
+	molecule-test-unbound molecule-converge-unbound molecule-destroy-unbound
+
+MOLECULE_ROLE ?= unbound
+MOLECULE_SCENARIO ?= default
 
 ## Default
 help: ## List available make targets with descriptions.
@@ -41,3 +46,23 @@ ansible-inv-verify: ## Verify the inventory file
 	$(ENGINE) run --rm -v $(CURDIR):/ldu $(RUN_IMAGE) \
 	ansible-inventory -i /ldu/ansible/inventory.ini --list
 
+uv-sync-ansible: ## Install/update Ansible tooling dependencies with uv (ansible scoped)
+	cd ansible && uv sync --dev
+
+molecule-test: ## Run Molecule full test for a role (MOLECULE_ROLE=..., MOLECULE_SCENARIO=...)
+	cd ansible/roles/$(MOLECULE_ROLE) && uv run --project ../.. molecule test -s $(MOLECULE_SCENARIO)
+
+molecule-converge: ## Run Molecule converge for a role (MOLECULE_ROLE=..., MOLECULE_SCENARIO=...)
+	cd ansible/roles/$(MOLECULE_ROLE) && uv run --project ../.. molecule converge -s $(MOLECULE_SCENARIO)
+
+molecule-destroy: ## Destroy Molecule resources for a role (MOLECULE_ROLE=..., MOLECULE_SCENARIO=...)
+	cd ansible/roles/$(MOLECULE_ROLE) && uv run --project ../.. molecule destroy -s $(MOLECULE_SCENARIO)
+
+molecule-test-unbound: ## Run Molecule full test for unbound role
+	$(MAKE) molecule-test MOLECULE_ROLE=unbound MOLECULE_SCENARIO=default
+
+molecule-converge-unbound: ## Run Molecule converge for unbound role
+	$(MAKE) molecule-converge MOLECULE_ROLE=unbound MOLECULE_SCENARIO=default
+
+molecule-destroy-unbound: ## Destroy Molecule resources for unbound role
+	$(MAKE) molecule-destroy MOLECULE_ROLE=unbound MOLECULE_SCENARIO=default

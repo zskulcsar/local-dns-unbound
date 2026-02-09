@@ -1,0 +1,59 @@
+---
+- name: Prepare test instances
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Molecule test dependencies
+      ansible.builtin.apt:
+        name:
+          - sudo
+        state: present
+
+    - name: Install systemd-resolved package when available
+      ansible.builtin.apt:
+        name: systemd-resolved
+        state: present
+      register: unbound_resolved_pkg_attempt
+      failed_when: false
+
+    - name: Check systemd-resolved service unit availability
+      ansible.builtin.command:
+        cmd: systemctl list-unit-files systemd-resolved.service
+      register: unbound_resolved_unit
+      changed_when: false
+      failed_when: false
+
+    - name: Assert systemd-resolved service unit exists
+      ansible.builtin.assert:
+        that:
+          - unbound_resolved_unit.rc == 0
+        fail_msg: >-
+          systemd-resolved.service is not available on this test instance.
+          Package install attempt message: {{ unbound_resolved_pkg_attempt.msg | default('n/a') }}
+
+    - name: Install package providing dig
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+      register: unbound_dig_pkg_attempt
+      failed_when: false
+      loop:
+        - bind9-dnsutils
+        - dnsutils
+
+    - name: Check dig command availability
+      ansible.builtin.shell: "command -v dig"
+      register: unbound_dig_path
+      changed_when: false
+      failed_when: false
+
+    - name: Assert dig is available
+      ansible.builtin.assert:
+        that:
+          - unbound_dig_path.rc == 0
+        fail_msg: "No dig provider package could be installed."
